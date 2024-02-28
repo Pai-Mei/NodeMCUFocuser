@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34309.116
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodeMCUFocuser", "NodeMCUFocuser\NodeMCUFocuser.csproj", "{C708E487-E3A9-4073-A545-294B88674225}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodeMCUFocuserSettings", "NodeMCUFocuserSettings\NodeMCUFocuserSettings.csproj", "{11A158A2-2C9C-4F3A-9E43-D1E2521B108E}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "NodeMCUFocuserSetup", "NodeMCUFocuserSetup\NodeMCUFocuserSetup.vdproj", "{90A5D5FB-C4C4-410A-8637-FE2A58B17AD8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C708E487-E3A9-4073-A545-294B88674225}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C708E487-E3A9-4073-A545-294B88674225}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C708E487-E3A9-4073-A545-294B88674225}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C708E487-E3A9-4073-A545-294B88674225}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11A158A2-2C9C-4F3A-9E43-D1E2521B108E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11A158A2-2C9C-4F3A-9E43-D1E2521B108E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11A158A2-2C9C-4F3A-9E43-D1E2521B108E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11A158A2-2C9C-4F3A-9E43-D1E2521B108E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90A5D5FB-C4C4-410A-8637-FE2A58B17AD8}.Debug|Any CPU.ActiveCfg = Debug
+		{90A5D5FB-C4C4-410A-8637-FE2A58B17AD8}.Release|Any CPU.ActiveCfg = Release
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FC171180-738A-44FA-A749-EBA915FC3733}
+	EndGlobalSection
+EndGlobal
