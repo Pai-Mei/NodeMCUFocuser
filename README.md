@@ -37,7 +37,7 @@ Also you can use your browser to be able to manipulate with focuser. Just folow 
 <img src='images/WebInterface.png' width=400/>
 
 It shows current status of focuser and allows:
- * Perform small or large steps forward and backward
+ * Perform small(25) or large(250) amount of steps forward and backward
  * Perform custom amount of steps (positive number forward, negative - backward)
  * Stop focuser moving on current position
  * Stop motor brake to ba able to move focuser manually
