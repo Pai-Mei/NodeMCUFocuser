@@ -32,6 +32,16 @@ Mounted on scope it looks like that
 
 <img src='images/mounted.jpg' width=400/>
 
+#Web interface
+Also you can use your browser to be able to manipulate with focuser. Just folow IP address you provide in settings or default address(192.168.0.1) if you haven't changed it.
+<img src='images/WebInterface.png' width=400/>
+
+It shows current status of focuser and allows:
+ * Perform small or large steps forward and backward
+ * Perform custom amount of steps (positive number forward, negative - backward)
+ * Stop focuser moving on current position
+ * Stop motor brake to ba able to move focuser manually
+
 # Project structure:
 * NodeMCUFocuser - Visual Studio C# project with SCOM driver for focuser
 * NodeMCUFocuserHardware - Arduino project with firmware and STL models for holder
@@ -45,4 +55,4 @@ Mounted on scope it looks like that
     ASCOM.NodeMCUFocuser.exe -register
 ```
 
-2. If you want restore to default WiFi and IP settings just press FLASH buttom for 5 seconds right after powering up.
+2. If you want restore to default WiFi and IP settings just press FLASH button for 5 seconds right after powering up.
