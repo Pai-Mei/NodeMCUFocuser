@@ -90,6 +90,7 @@ void DoStep() {
 
 void SetMaxPosition(int steps) {
   targetPosition = currentPosition = steps / 2;
+  myStepper.setCurrentPosition(currentPosition);
   isMoving = false;
 }
 
