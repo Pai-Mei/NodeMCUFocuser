@@ -25,8 +25,12 @@ IPAddress subnet;
 
 // Define step constant (4 - full-step, 8 - half-step)
 #define MotorInterfaceType  8
+#define pinIN1 14
+#define pinIN3 13
+#define pinIN4 15
+#define pinIN2 12
 // Pins entered in sequence IN1-IN3-IN4-IN2 for proper step sequence
-AccelStepper myStepper(MotorInterfaceType, 14, 13, 15, 12);
+AccelStepper myStepper(MotorInterfaceType, pinIN1, pinIN3, pinIN4, pinIN2);
 
 //global variables for stepper
 int currentPosition = 0;
@@ -111,8 +115,16 @@ void Stop() {
   isMoving = false;
 }
 
+void StopBrake() {
+  digitalWrite(pinIN1, LOW);
+  digitalWrite(pinIN2, LOW);
+  digitalWrite(pinIN3, LOW);
+  digitalWrite(pinIN4, LOW);
+}
+
 //------Serial communication----------------------------------
 
+#define StopBrakeCommand "stopBrake"
 #define StopCommand "stop"
 #define MoveCommand "move"
 #define MoveToCommand "moveto"
@@ -139,7 +151,10 @@ String ProcessCommand(String command) {
   } else if (command.startsWith(StopCommand)) {
     Stop();
     return WithTermination(String("stoped"));
-  } else if (command.startsWith(GetSettings)) {
+  } else if (command.startsWith(StopBrakeCommand)) {
+    StopBrake();
+    return WithTermination(String("brakeStoped"));
+  }else if (command.startsWith(GetSettings)) {
     return WithTermination(CurrentSettings());
   } else if (command.startsWith(SaveSettings)) {
     if(StoreSettings(command.substring(strlen(SaveSettings) + 1)))
@@ -400,6 +415,9 @@ void PerformAction() {
     } else if (server.argName(i) == StopCommand) {
       int stop = String(server.arg(i)).toInt();
       if (stop > 0) Stop();
+    } else if (server.argName(i) == StopBrakeCommand) {
+      int stopBrake = String(server.arg(i)).toInt();
+      if (stopBrake > 0) StopBrake();
     }
   }
 }
@@ -443,6 +461,8 @@ String GetCientPage() {
   <a href="/?move=250"><button class="button">&#8667;</button></a>
   </p>
   <form><p><input type="text" id="move" value="100" name="move" size="5"><input style="button" type="submit" value="Move"></p></form>  
+  <p><a href="/?stopBrake=1"><button class="button">Stop brake</button></a></p>
+  
   </body></html>)";
   return response;
 }
