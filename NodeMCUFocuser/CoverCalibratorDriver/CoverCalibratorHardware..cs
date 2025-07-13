@@ -1,83 +1,86 @@
 ﻿// TODO fill in this information for your driver, then remove this line!
 //
-// ASCOM Focuser hardware class for NodeMCUFocuser
+// ASCOM CoverCalibrator hardware class for SRNodeMCUPanel
 //
 // Description:	 <To be completed by driver developer>
 //
-// Implements:	ASCOM Focuser interface version: <To be completed by driver developer>
+// Implements:	ASCOM CoverCalibrator interface version: <To be completed by driver developer>
 // Author:		(XXX) Your N. Here <your@email.here>
 //
 
 using ASCOM;
-using ASCOM.Astrometry;
 using ASCOM.Astrometry.AstroUtils;
-using ASCOM.Astrometry.NOVAS;
 using ASCOM.DeviceInterface;
 using ASCOM.LocalServer;
+using ASCOM.NodeMCUFocuser.CoverCalibratorDriver;
 using ASCOM.NodeMCUFocuser.Device;
+using ASCOM.NodeMCUFocuser.Focuser;
 using ASCOM.Utilities;
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 
-namespace ASCOM.NodeMCUFocuser.Focuser
+namespace ASCOM.NodeMCUFocuser.CoverCalibrator
 {
     //
     // TODO Replace the not implemented exceptions with code to implement the function or throw the appropriate ASCOM exception.
     //
 
     /// <summary>
-    /// ASCOM Focuser hardware class for NodeMCUFocuser.
+    /// ASCOM CoverCalibrator hardware class for SRNodeMCUPanel.
     /// </summary>
     [HardwareClass()] // Class attribute flag this as a device hardware class that needs to be disposed by the local server when it exits.
-    internal static class FocuserHardware
+    internal static class CoverCalibratorHardware
     {
+        // Constants used for Profile persistence
+        internal const string comPortProfileName = "COM Port";
+        internal const string comPortDefault = "COM1";
         internal const string traceStateProfileName = "Trace Level";
         internal const string traceStateDefault = "true";
 
         private static string DriverProgId = ""; // ASCOM DeviceID (COM ProgID) for this driver, the value is set by the driver's class initialiser.
         private static string DriverDescription = ""; // The value is set by the driver's class initialiser.
-        
+        internal static string comPort; // COM port name (if required)
         private static bool connectedState; // Local server's connected state
         private static bool runOnce = false; // Flag to enable "one-off" activities only to run once.
         internal static Util utilities; // ASCOM Utilities object for use as required
         internal static AstroUtils astroUtilities; // ASCOM AstroUtilities object for use as required
         internal static TraceLogger tl; // Local server's trace logger object for diagnostic log with information that you specify
 
-        public static FocuserSettings Settings = new FocuserSettings();
-        private static ICustomFocuser _focuser;
-
+        public static CoverSettings Settings = new CoverSettings();
+        private static CoverStatus _currentCoverStatus = CoverStatus.Unknown;
+        private static CalibratorStatus _currentCalibratorStatus = CalibratorStatus.Unknown;
+        private static ICustomCover _cover;
         /// <summary>
         /// Initializes a new instance of the device Hardware class.
         /// </summary>
-        static FocuserHardware()
+        static CoverCalibratorHardware()
         {
             try
             {
                 // Create the hardware trace logger in the static initialiser.
                 // All other initialisation should go in the InitialiseHardware method.
-                tl = new TraceLogger("", "NodeMCUFocuser.Hardware");
+                tl = new TraceLogger("", "SRNodeMCUPanel.Hardware");
 
                 // DriverProgId has to be set here because it used by ReadProfile to get the TraceState flag.
-                DriverProgId = Focuser.DriverProgId; // Get this device's ProgID so that it can be used to read the Profile configuration values
+                DriverProgId = CoverCalibrator.DriverProgId; // Get this device's ProgID so that it can be used to read the Profile configuration values
 
                 // ReadProfile has to go here before anything is written to the log because it loads the TraceLogger enable / disable state.
-                ReadProfile(); // Read device configuration from the ASCOM Profile store, including the trace state                
-                
-                LogMessage("FocuserHardware", $"Static initialiser completed.");
+                ReadProfile(); // Read device configuration from the ASCOM Profile store, including the trace state
+
+                LogMessage("CoverCalibratorHardware", $"Static initialiser completed.");
             }
             catch (Exception ex)
             {
-                try { LogMessage("FocuserHardware", $"Initialisation exception: {ex}"); } catch { }
-                MessageBox.Show($"{ex.Message}", "Exception creating ASCOM.NodeMCUFocuser.Focuser", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                try { LogMessage("CoverCalibratorHardware", $"Initialisation exception: {ex}"); } catch { }
+                MessageBox.Show($"{ex.Message}", "Exception creating ASCOM.SRNodeMCUPanel.CoverCalibrator", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 throw;
             }
         }
 
         /// <summary>
-        /// Place device initialisation code here that delivers the selected ASCOM <see cref="Devices."/>
+        /// Place device initialisation code here
         /// </summary>
         /// <remarks>Called every time a new instance of the driver is created.</remarks>
         internal static void InitialiseHardware()
@@ -90,7 +93,7 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             {
                 LogMessage("InitialiseHardware", $"Starting one-off initialisation.");
 
-                DriverDescription = Focuser.DriverDescription; // Get this device's Chooser description
+                DriverDescription = CoverCalibrator.DriverDescription; // Get this device's Chooser description
 
                 LogMessage("InitialiseHardware", $"ProgID: {DriverProgId}, Description: {DriverDescription}");
 
@@ -103,13 +106,13 @@ namespace ASCOM.NodeMCUFocuser.Focuser
                 // Add your own "one off" device initialisation here e.g. validating existence of hardware and setting up communications
 
                 LogMessage("InitialiseHardware", $"One-off initialisation complete.");
-                runOnce = true; // Set the flag to ensure that this code is not run again                
+                runOnce = true; // Set the flag to ensure that this code is not run again
             }
 
-            _focuser = FocuserFactory.GetFocuser(Settings);
+            _cover = CoverFactory.GetCover(Settings);
         }
 
-        // PUBLIC COM INTERFACE IFocuserV3 IMPLEMENTATION
+        // PUBLIC COM INTERFACE ICoverCalibratorV1 IMPLEMENTATION
 
         #region Common properties and methods.
 
@@ -125,7 +128,7 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             if (IsConnected)
                 MessageBox.Show("Already connected, just press OK");
 
-            using (SetupDialogForm F = new SetupDialogForm(tl))
+            using (CoverSetupDialogForm F = new CoverSetupDialogForm(tl))
             {
                 var result = F.ShowDialog();
                 if (result == DialogResult.OK)
@@ -238,12 +241,7 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         /// </remarks>
         public static void Dispose()
         {
-            try 
-            { 
-                LogMessage("Dispose", $"Disposing of assets and closing down.");
-                if(!(_focuser is null))
-                    _focuser.Dispose();
-            } catch { }
+            try { LogMessage("Dispose", $"Disposing of assets and closing down."); } catch { }
 
             try
             {
@@ -256,16 +254,14 @@ namespace ASCOM.NodeMCUFocuser.Focuser
 
             try
             {
-                if(utilities != null)
-                    utilities.Dispose();
+                utilities.Dispose();
                 utilities = null;
             }
             catch { }
 
             try
             {
-                if (astroUtilities != null)
-                    astroUtilities.Dispose();
+                astroUtilities.Dispose();
                 astroUtilities = null;
             }
             catch { }
@@ -291,14 +287,17 @@ namespace ASCOM.NodeMCUFocuser.Focuser
 
                 if (value)
                 {
-                    LogMessage("Connected Set", $"Connecting");
-                    if (_focuser is null) _focuser = FocuserFactory.GetFocuser(Settings);
-                    connectedState = _focuser?.Connect() == true;
+                    LogMessage("Connected Set", $"Connecting to port {comPort}");
+                    if (_cover is null) _cover = CoverFactory.GetCover(Settings);
+
+                    connectedState = _cover?.Connect() == true;
                 }
                 else
                 {
-                    LogMessage("Connected Set", $"Disconnecting");
-                    _focuser?.Close();
+                    LogMessage("Connected Set", $"Disconnecting from port {comPort}");
+
+                    _cover?.Close();
+
                     connectedState = false;
                 }
             }
@@ -355,8 +354,8 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             // set by the driver wizard
             get
             {
-                LogMessage("InterfaceVersion Get", "3");
-                return Convert.ToInt16("3");
+                LogMessage("InterfaceVersion Get", "1");
+                return Convert.ToInt16("1");
             }
         }
 
@@ -368,7 +367,7 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             // TODO customise this device name as required
             get
             {
-                string name = "CustomFocuser";
+                string name = "Short driver name - please customise";
                 LogMessage("Name Get", name);
                 return name;
             }
@@ -376,151 +375,103 @@ namespace ASCOM.NodeMCUFocuser.Focuser
 
         #endregion
 
-        #region IFocuser Implementation
-
-        private static int focuserPosition = 0; // Class level variable to hold the current focuser position
+        #region ICoverCalibrator Implementation
 
         /// <summary>
-        /// True if the focuser is capable of absolute position; that is, being commanded to a specific step location.
+        /// Returns the state of the device cover, if present, otherwise returns "NotPresent"
         /// </summary>
-        internal static bool Absolute
+        internal static CoverStatus CoverState
         {
             get
             {                
-                return FocuserHardware.Settings.Absolute;
+                LogMessage("CoverState Get", "Not implemented");
+                return _currentCoverStatus;
             }
         }
 
         /// <summary>
-        /// Immediately stop any focuser motion due to a previous <see cref="Move" /> method call.
+        /// Initiates cover opening if a cover is present
         /// </summary>
-        internal static void Halt()
-        {            
-            _focuser?.Stop();            
+        internal static void OpenCover()
+        {
+            LogMessage("OpenCover", "Open");
+            _cover.OpenLid();
+            _currentCoverStatus = CoverStatus.Open;
         }
-        
+
         /// <summary>
-        /// True if the focuser is currently moving to a new position. False if the focuser is stationary.
-        /// </summary>        
-        internal static bool IsMoving
+        /// Initiates cover closing if a cover is present
+        /// </summary>
+        internal static void CloseCover()
+        {
+            LogMessage("CloseCover", "Close");
+            _cover.CloseLid();
+            _currentCoverStatus = CoverStatus.Closed;
+        }
+
+        /// <summary>
+        /// Stops any cover movement that may be in progress if a cover is present and cover movement can be interrupted.
+        /// </summary>
+        internal static void HaltCover()
+        {
+            LogMessage("HaltCover", "Not implemented");            
+        }
+
+        /// <summary>
+        /// Returns the state of the calibration device, if present, otherwise returns "NotPresent"
+        /// </summary>
+        internal static CalibratorStatus CalibratorState
         {
             get
             {
-                var isMoving = _focuser?.IsMoving == true;
-                LogMessage("IsMoving Get", isMoving.ToString());
-                return isMoving;
+                LogMessage("CalibratorState Get", "Not implemented");
+                return _currentCalibratorStatus;
             }
         }
 
         /// <summary>
-        /// Maximum increment size allowed by the focuser;
-        /// i.e. the maximum number of steps allowed in one move operation.
+        /// Returns the current calibrator brightness in the range 0 (completely off) to <see cref="MaxBrightness"/> (fully on)
         /// </summary>
-        internal static int MaxIncrement
+        internal static int Brightness
         {
             get
             {
-                LogMessage("MaxIncrement Get", FocuserHardware.Settings.MaxIncrement.ToString());
-                return FocuserHardware.Settings.MaxIncrement; // Maximum change in one move
-            }
-            set
-            {
-                FocuserHardware.Settings.MaxIncrement = value;
+                LogMessage("Brightness Get", "Not implemented");                
+                return _cover?.Brightnes ?? 0;
             }
         }
 
         /// <summary>
-        /// Maximum step position permitted.
+        /// The Brightness value that makes the calibrator deliver its maximum illumination.
         /// </summary>
-        internal static int MaxStep
+        internal static int MaxBrightness
         {
             get
             {
-                LogMessage("MaxStep Get", FocuserHardware.Settings.MaxStepsCount.ToString());
-                return FocuserHardware.Settings.MaxStepsCount; // Maximum extent of the focuser, so position range is 0 to 10,000
-            }
-            set
-            {
-                FocuserHardware.Settings.MaxStepsCount = value;
+                LogMessage("MaxBrightness Get", "Not implemented");
+                return _cover?.MaxBrightnes ?? 0;
             }
         }
 
         /// <summary>
-        /// Moves the focuser by the specified amount or to the specified position depending on the value of the <see cref="Absolute" /> property.
+        /// Turns the calibrator on at the specified brightness if the device has calibration capability
         /// </summary>
-        /// <param name="Position">Step distance or absolute position, depending on the value of the <see cref="Absolute" /> property.</param>
-        internal static void Move(int position)
+        /// <param name="Brightness"></param>
+        internal static void CalibratorOn(int Brightness)
         {
-            LogMessage("Move", position.ToString());
-            if (_focuser is null) return;
-            _focuser.Move(position, Absolute);
-            focuserPosition = position;
+            LogMessage("CalibratorOn", $"Value set: {Brightness}");
+            _cover.SetLight(Brightness);
+            _currentCalibratorStatus = CalibratorStatus.Ready;
         }
 
         /// <summary>
-        /// Current focuser position, in steps.
+        /// Turns the calibrator off if the device has calibration capability
         /// </summary>
-        internal static int Position
+        internal static void CalibratorOff()
         {
-            get
-            {
-                return _focuser?.Position ?? focuserPosition;
-            }
-        }
-
-
-        /// <summary>
-        /// Step size (microns) for the focuser.
-        /// </summary>
-        internal static double StepSize
-        {
-            get
-            {
-                LogMessage("StepSize Get", "Not implemented");
-                return 1;
-            }
-        }
-
-        /// <summary>
-        /// The state of temperature compensation mode (if available), else always False.
-        /// </summary>
-        internal static bool TempComp
-        {
-            get
-            {
-                LogMessage("TempComp Get", false.ToString());
-                return false;
-            }
-            set
-            {
-                LogMessage("TempComp Set", "Not implemented");
-                //throw new PropertyNotImplementedException("TempComp", false);
-            }
-        }
-
-        /// <summary>
-        /// True if focuser has temperature compensation available.
-        /// </summary>
-        internal static bool TempCompAvailable
-        {
-            get
-            {
-                LogMessage("TempCompAvailable Get", false.ToString());
-                return false; // Temperature compensation is not available in this driver
-            }
-        }
-
-        /// <summary>
-        /// Current ambient temperature in degrees Celsius as measured by the focuser.
-        /// </summary>
-        internal static double Temperature
-        {
-            get
-            {
-                LogMessage("Temperature Get", "Not implemented");
-                //throw new PropertyNotImplementedException("Temperature", false);
-                return 0;
-            }
+            LogMessage("CalibratorOff", "");
+            _cover.SetLight(0);
+            _currentCalibratorStatus = CalibratorStatus.Off;
         }
 
         #endregion
@@ -534,8 +485,8 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         private static bool IsConnected
         {
             get
-            {                
-                return _focuser?.IsConnected == true;
+            {
+                return _cover?.IsConnected == true;                
             }
         }
 
@@ -545,10 +496,7 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         /// <param name="message"></param>
         private static void CheckConnected(string message)
         {
-            if (!IsConnected)
-            {
-                throw new NotConnectedException(message);
-            }
+            var connected = _cover.IsConnected;
         }
 
         /// <summary>
@@ -558,20 +506,14 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         {
             using (Profile driverProfile = new Profile())
             {
-                driverProfile.DeviceType = "Focuser";
+                driverProfile.DeviceType = "CoverCalibrator";
                 tl.Enabled = Convert.ToBoolean(driverProfile.GetValue(DriverProgId, traceStateProfileName, string.Empty, traceStateDefault));
                 Settings.ServerAddress = driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.ServerAddress), "192.168.0.1");
-                if (bool.TryParse(driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.Absolute), "false"), out bool absoluteValue))
-                    Settings.Absolute = absoluteValue;
                 if (bool.TryParse(driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.UseComPort), "true"), out bool useComPortValue))
-                    Settings.UseComPort = useComPortValue;                
+                    Settings.UseComPort = useComPortValue;
                 Settings.PortName = driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.PortName), SharedResources.SharedSerial.AvailableCOMPorts.FirstOrDefault());
                 if (bool.TryParse(driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.UseServer), "false"), out bool useServerValue))
-                    Settings.UseServer = useServerValue;                
-                if (int.TryParse(driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.MaxStepsCount), "100000"), out int _maxStep))
-                    Settings.MaxStepsCount = _maxStep;
-                if (int.TryParse(driverProfile.GetValue(DriverProgId, nameof(Settings), nameof(Settings.MaxIncrement), "100000"), out int _maxIncrement))
-                    Settings.MaxIncrement = _maxIncrement;
+                    Settings.UseServer = useServerValue;
             }
         }
 
@@ -582,15 +524,12 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         {
             using (Profile driverProfile = new Profile())
             {
-                driverProfile.DeviceType = "Focuser";
+                driverProfile.DeviceType = "CoverCalibrator";
                 driverProfile.WriteValue(DriverProgId, traceStateProfileName, tl.Enabled.ToString());
-                driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.Absolute.ToString(), nameof(Settings.Absolute));
-                driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.UseComPort.ToString() , nameof(Settings.UseComPort));
+                driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.UseComPort.ToString(), nameof(Settings.UseComPort));
                 driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.PortName.ToString(), nameof(Settings.PortName));
                 driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.UseServer.ToString(), nameof(Settings.UseServer));
                 driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.ServerAddress.ToString(), nameof(Settings.ServerAddress));
-                driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.MaxStepsCount.ToString(), nameof(Settings.MaxStepsCount));
-                driverProfile.WriteValue(DriverProgId, nameof(Settings), Settings.MaxIncrement.ToString(), nameof(Settings.MaxIncrement));
             }
         }
 
