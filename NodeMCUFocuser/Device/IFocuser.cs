@@ -4,13 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ASCOM.NodeMCUFocuser.Focuser
+namespace ASCOM.NodeMCUFocuser.Device
 {
-    public interface ICustomFocuser : IDisposable
+    public interface ICustomFocuser : IDevice
     {
-        bool Connect();
-        bool IsConnected { get; }
-        void Close();
         void Move(int steps, bool absolute);
         void Stop();
         bool IsMoving { get; }

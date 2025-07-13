@@ -66,10 +66,10 @@
     <AssemblyOriginatorKeyFile>LocalServer.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestCertificateThumbprint>26CBCA6A41142946E6ACD9627D72DD1A24FBFF7F</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>103FF247406617FE6E0004099221DCBFE9273333</ManifestCertificateThumbprint>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestKeyFile>CustomFocuser_TemporaryKey.pfx</ManifestKeyFile>
+    <ManifestKeyFile>NodeMCUFocuser_TemporaryKey.pfx</ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
     <GenerateManifests>true</GenerateManifests>
@@ -99,13 +99,27 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClassFactory.cs" />
-    <Compile Include="FocuserDriver\ComFocuser.cs" />
+    <Compile Include="CoverCalibratorDriver\CoverCalibratorDriver.cs" />
+    <Compile Include="CoverCalibratorDriver\CoverCalibratorHardware..cs" />
+    <Compile Include="CoverCalibratorDriver\CoverFactory.cs" />
+    <Compile Include="CoverCalibratorDriver\CoverSettings .cs" />
+    <Compile Include="CoverCalibratorDriver\CoverSetupDialogForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CoverCalibratorDriver\CoverSetupDialogForm.designer.cs">
+      <DependentUpon>CoverSetupDialogForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Device\DeviceSettings.cs" />
+    <Compile Include="Device\ICover.cs" />
+    <Compile Include="Device\ComDevice.cs" />
+    <Compile Include="Device\IDevice.cs" />
+    <Compile Include="Device\IFilterWheel.cs" />
     <Compile Include="FocuserDriver\FocuserDriver.cs" />
     <Compile Include="FocuserDriver\FocuserFactory.cs" />
     <Compile Include="FocuserDriver\FocuserHardware..cs" />
     <Compile Include="FocuserDriver\FocuserSettings.cs" />
-    <Compile Include="FocuserDriver\IFocuser.cs" />
-    <Compile Include="FocuserDriver\ServerFocuser.cs" />
+    <Compile Include="Device\IFocuser.cs" />
+    <Compile Include="Device\ServerDevice.cs" />
     <Compile Include="frmMain.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -115,6 +129,10 @@
     <Compile Include="GarbageCollection.cs" />
     <Compile Include="LocalServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="CoverCalibratorDriver\CoverSetupDialogForm.resx">
+      <DependentUpon>CoverSetupDialogForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="frmMain.resx">
       <SubType>Designer</SubType>
       <DependentUpon>frmMain.cs</DependentUpon>
@@ -142,6 +160,7 @@
     <None Include="app.config" />
     <None Include="CustomFocuser_TemporaryKey.pfx" />
     <None Include="LocalServer.snk" />
+    <None Include="NodeMCUFocuser_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Client.3.5">

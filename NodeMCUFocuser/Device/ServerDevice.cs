@@ -1,4 +1,5 @@
 ﻿using ASCOM.LocalServer;
+using ASCOM.LocalServer.Device;
 using System;
 using System.Collections.Generic;
 using System.Drawing.Imaging;
@@ -13,9 +14,9 @@ using System.Web;
 using System.Web.Script.Serialization;
 
 
-namespace ASCOM.NodeMCUFocuser.Focuser
+namespace ASCOM.NodeMCUFocuser.Device
 {
-    public class ServerFocuser : ICustomFocuser
+    public class ServerDevice : ICustomFocuser, ICustomCover, IFilterWheel
     {
         public bool IsMoving { get; set; }
 
@@ -25,8 +26,12 @@ namespace ASCOM.NodeMCUFocuser.Focuser
 
         private String Root { get; set; }
 
+        public int MaxBrightnes => 1024;
+
+        public int Brightnes { get; set; }
+
         private System.Timers.Timer Timer { get; set; }
-        public ServerFocuser(String serverAddress, int maxStepsCount)
+        public ServerDevice(String serverAddress, int maxStepsCount)
         {
             MaxPosition = maxStepsCount;
             Root = serverAddress;
@@ -117,6 +122,22 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             {
                 return false;
             }
+        }
+
+        public void OpenLid()
+        {
+            Send("opencover=1");
+        }
+
+        public void CloseLid()
+        {
+            Send("opencover=0");
+        }
+
+        public void SetLight(int level)
+        {
+            Brightnes = level;
+            Send($"setlight={level}");
         }
     }
 }

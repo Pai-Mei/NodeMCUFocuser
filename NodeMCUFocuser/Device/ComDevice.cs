@@ -1,5 +1,6 @@
 ﻿using ASCOM.DeviceInterface;
 using ASCOM.LocalServer;
+using ASCOM.LocalServer.Device;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -9,17 +10,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ASCOM.NodeMCUFocuser.Focuser
+namespace ASCOM.NodeMCUFocuser.Device
 {
-    public class ComFocuser : IDisposable, ICustomFocuser
+    public class ComDevice : IDisposable, ICustomFocuser, ICustomCover, IFilterWheel
     {       
 
         public bool IsMoving { get; set; }
-
         public int Position { get; set; }
         public int MaxPosition { get; set; }
 
-        public ComFocuser(String comPort, int maxStepsCount)
+
+        public ComDevice(String comPort, int maxStepsCount)
         {
             MaxPosition = maxStepsCount;
             SharedResources.SharedSerial.PortName = comPort;
@@ -28,7 +29,7 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             SharedResources.SharedSerial.DataBits = 8;
             SharedResources.SharedSerial.Speed = Utilities.SerialSpeed.ps9600;
             SharedResources.SharedSerial.ReceiveTimeout = 500;
-            SharedResources.SharedSerial.Handshake = Utilities.SerialHandshake.None;            
+            SharedResources.SharedSerial.Handshake = Utilities.SerialHandshake.None;
         }
 
         public bool Connect()
@@ -46,6 +47,10 @@ namespace ASCOM.NodeMCUFocuser.Focuser
             }
         }
 
+        public int MaxBrightnes { get; set; } = 1024;
+
+        public int Brightnes { get; set; }
+
         public void Close()
         {
             SharedResources.Connected = false;
@@ -59,12 +64,42 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         public void Move(int position, bool absolute)
         {
             if (SharedResources.Connected)
-                SharedResources.SendMessage($"{(absolute ? "moveto" : "move")} {position}");             
+            {
+                WaitWhileMoving();
+                var answer = SharedResources.SendMessage($"{(absolute ? "moveto" : "move")} {position}");
+                IsMoving = true;
+                WaitWhileMoving();
+            }
+        }
+
+        private void WaitWhileMoving()
+        {
+            while (IsMoving)
+            {
+                var stoppedString = SharedResources.SharedSerial.ReceiveTerminated("#");
+                IsMoving = !stoppedString.Contains("stoped");
+            }
         }
 
         public void Stop()
         {
             SharedResources.SendMessage($"stop");
+        }
+
+        public void OpenLid()
+        {
+            SharedResources.SendMessage($"open_cover");
+        }
+
+        public void CloseLid()
+        {
+            SharedResources.SendMessage($"close_cover");
+        }
+
+        public void SetLight(int level)
+        {
+            SharedResources.SendMessage($"set_light {level}");
+            Brightnes = level;
         }
     }
 }

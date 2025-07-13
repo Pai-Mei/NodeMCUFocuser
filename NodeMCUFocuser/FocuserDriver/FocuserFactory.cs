@@ -1,4 +1,5 @@
-﻿using ASCOM.NodeMCUFocuser.Focuser;
+﻿using ASCOM.NodeMCUFocuser.Device;
+using ASCOM.NodeMCUFocuser.Focuser;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,9 +14,9 @@ namespace ASCOM.NodeMCUFocuser.Focuser
         {
             if(settings.UseComPort)
             {
-                return new ComFocuser(settings.PortName, settings.MaxStepsCount);
+                return new ComDevice(settings.PortName, settings.MaxStepsCount);
             } else if (settings.UseServer) {
-                return new ServerFocuser(settings.ServerAddress, settings.MaxStepsCount);
+                return new ServerDevice(settings.ServerAddress, settings.MaxStepsCount);
             } else
             {
                 return null;

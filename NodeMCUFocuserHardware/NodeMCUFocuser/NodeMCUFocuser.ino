@@ -4,15 +4,19 @@
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
+#include <Servo.h>
 
-#define Debug                   0 // set to 1 to see debug messages over serial
-#define EEPROMStartAddress    0x0f
+#define Debug 0  // set to 1 to see debug messages over serial
+#define EEPROMStartAddress 0x0f
 
-#define BOOT_MODE_BUTTON_PIN    0
-#define INDICATOR_LED_PIN       2
-#define INDICATOR_LED_ON        0
-#define INDICATOR_LED_OFF       1
-#define RESET_CONFIG_THRESHOLD  5000
+#define BOOT_MODE_BUTTON_PIN 0
+#define INDICATOR_LED_PIN 2
+#define INDICATOR_LED_ON 0
+#define INDICATOR_LED_OFF 1
+#define RESET_CONFIG_THRESHOLD 5000
+
+#define Status_Moving "moving"
+#define Status_Stoped "stoped"
 
 //global settings stored in EEPROM
 bool ServerEnabled;
@@ -23,15 +27,20 @@ IPAddress localIP;
 IPAddress gateway;
 IPAddress subnet;
 
+#define pinServo 5
+#define pinLight 0//4
+int brightness = 0;
+
 // Define step constant (4 - full-step, 8 - half-step)
-#define MotorInterfaceType  8
+#define MotorInterfaceType 4
 #define pinIN1 14
 #define pinIN3 13
 #define pinIN4 15
 #define pinIN2 12
 // Pins entered in sequence IN1-IN3-IN4-IN2 for proper step sequence
 AccelStepper myStepper(MotorInterfaceType, pinIN1, pinIN3, pinIN4, pinIN2);
-
+//servo falt box lid control
+Servo servo;
 //global variables for stepper
 int currentPosition = 0;
 int targetPosition = 0;
@@ -44,38 +53,60 @@ const long timeoutTime = 30000;
 
 ESP8266WebServer server(80);
 
-void SetDefaults()
-{
-  ServerEnabled = true;
-  CreateAccessPoint = true;
-  // replace with your wifi ssid and wpa2 key
-  ssid = String("ASCOM NodeMCU WiFi Focuser"); 
-  pass = String("1234567890");
-  //set your IP configuration
-  localIP = IPAddress(192, 168, 0, 1);
-  gateway = IPAddress(192, 168, 0, 1);
-  subnet = IPAddress(255, 255, 0, 0);
+void SetDefaults() {
+  analogWriteRange(1024);
+  analogWriteFreq(500);
 }
 
 void setup() {
   Serial.begin(9600);
   InitSettings();
   SetupStepper();
+  SetupFlatBox();
   SetupWiFi();
   SetupServer();
+  SetupTimer();
 }
 
 void loop() {
-  DoStep();
-  CheckSerial();
-  CheckServer();
+  if(isMoving)
+    DoStep();
+  else {
+    CheckSerial();
+    CheckServer();
+  }
 }
+
+//------Timer----------------------------------
+
+void ICACHE_RAM_ATTR onTimerISR(){  
+  if(brightness > 0)
+  {
+    digitalWrite(pinLight,HIGH);
+    delayMicroseconds(brightness);
+    digitalWrite(pinLight,LOW);
+  }      
+  timer1_write(10000 - brightness);
+}
+
+void SetupTimer()
+{
+  //Initialize Ticker every 0.5s
+    timer1_attachInterrupt(onTimerISR);
+    //TIM_DIV1 = 0,   //80MHz (80 ticks/us - 104857.588 us max)
+    //TIM_DIV16 = 1,  //5MHz (5 ticks/us - 1677721.4 us max)
+    //TIM_DIV256 = 3 //312.5Khz (1 tick = 3.2us - 26843542.4 us max)
+    timer1_enable(TIM_DIV16, TIM_EDGE, TIM_SINGLE);
+    timer1_write(10000); //2ms
+}
+
+
 
 //------Stepper----------------------------------
 
 void SetupStepper() {
-  myStepper.setMaxSpeed(200.0);
-  myStepper.setAcceleration(20.0);
+  myStepper.setMaxSpeed(500.0);
+  myStepper.setAcceleration(50.0);
   myStepper.setSpeed(20);
   targetPosition = currentPosition = myStepper.currentPosition();
 }
@@ -84,7 +115,7 @@ void DoStep() {
   if (isMoving) {
     isMoving = myStepper.run();
     currentPosition = myStepper.currentPosition();
-    if (!isMoving) Serial.println(WithTermination("stoped"));
+    if (!isMoving && targetPosition == currentPosition) Serial.println(WithTermination(Status_Stoped));
   }
   if (targetPosition != currentPosition) {
     myStepper.moveTo(targetPosition);
@@ -122,8 +153,30 @@ void StopBrake() {
   digitalWrite(pinIN4, LOW);
 }
 
+//-----flat panel control--------------------------------------
+
+
+void SetupFlatBox()
+{
+  servo.attach(pinServo, 500, 2500); 
+  servo.write(176);
+}
+
+void OpenCover() {
+  servo.write(5);
+}
+
+void CloseCover() {
+  servo.write(176);
+}
+
+void SetLight(int level) {
+  analogWrite(pinLight, level);
+}
+
 //------Serial communication----------------------------------
 
+#define statusCommand "status"
 #define StopBrakeCommand "stopBrake"
 #define StopCommand "stop"
 #define MoveCommand "move"
@@ -131,9 +184,14 @@ void StopBrake() {
 #define SetMaxPositionCommand "set_max_position"
 #define SaveSettings "save_settings"
 #define GetSettings "get_settings"
+#define OpenCoverCmd "open_cover"
+#define CloseCoverCmd "close_cover"
+#define SetLightCmd "set_light"
 #define Termination "#"
 
-String WithTermination(String message) { return message + Termination; }
+String WithTermination(String message) {
+  return message + Termination;
+}
 
 String ProcessCommand(String command) {
   if (command.startsWith(SetMaxPositionCommand)) {
@@ -151,23 +209,49 @@ String ProcessCommand(String command) {
   } else if (command.startsWith(StopCommand)) {
     Stop();
     return WithTermination(String("stoped"));
+  } else if (command.startsWith(statusCommand)) {
+    String status = isMoving ? Status_Moving : Status_Stoped;
+    return WithTermination(String(status));
   } else if (command.startsWith(StopBrakeCommand)) {
     StopBrake();
     return WithTermination(String("brakeStoped"));
-  }else if (command.startsWith(GetSettings)) {
+  } else if (command.startsWith(OpenCoverCmd)) {
+    OpenCover();
+    return WithTermination("opened");
+  } else if (command.startsWith(CloseCoverCmd)) {
+    CloseCover();
+    return WithTermination("closed");
+  } else if (command.startsWith(SetLightCmd)) {
+    int level = command.substring(strlen(SetLightCmd) + 1).toInt();
+    SetLight(level);
+    return WithTermination("set");
+  } else if (command.startsWith(GetSettings)) {
     return WithTermination(CurrentSettings());
   } else if (command.startsWith(SaveSettings)) {
-    if(StoreSettings(command.substring(strlen(SaveSettings) + 1)))
-    {
+    if (StoreSettings(command.substring(strlen(SaveSettings) + 1))) {
       WriteToEEPROM();
       SetupWiFi();
       SetupServer();
-      return WithTermination(String("saved"));      
-    }
-    else
+      return WithTermination(String("saved"));
+    } else
       return WithTermination(String("failed"));
   } else
     return WithTermination(String("unknown command"));
+}
+
+String ProcessMoonliteCommand(String command) {
+  int offset = command[1] == '2' ? 1 : 0;
+  String cmd = command.substring(1 + offset, 2 + offset);
+  if (cmd = "GV")
+    return WithTermination(String("10"));
+  else if (cmd == "GP")
+    return WithTermination(String("0000"));
+  else if (cmd == "GN")
+    return WithTermination(String("0000"));
+  else if (cmd == "GT" || cmd == "GD" || cmd == "GH" || cmd == "GI" || cmd == "GB")
+    return WithTermination(String("0000"));
+
+  return WithTermination(String(""));
 }
 
 void CheckSerial() {
@@ -175,14 +259,17 @@ void CheckSerial() {
     while (Serial.available() == 0) {}  //wait for data available
     String teststr = Serial.readString();
     teststr.trim();
-    String answer = ProcessCommand(teststr);
+    String answer;
+    if (teststr[0] == ':')
+      answer = ProcessMoonliteCommand(teststr);
+    else
+      answer = ProcessCommand(teststr);
     Serial.println(answer);
     delay(100);
   }
 }
 
-String CurrentSettings()
-{
+String CurrentSettings() {
   //returns current settings in json
   String result = "{\r\n\"serverEnabled\":\"" + String(ServerEnabled) + "\",\r\n";
   result += "\"createAccessPoint\":\"" + String(CreateAccessPoint) + "\",\r\n";
@@ -194,14 +281,13 @@ String CurrentSettings()
   return result;
 }
 
-bool StoreSettings(String json)
-{
+bool StoreSettings(String json) {
   //returns true if successfully stored
   DebugPrint("Store settings ");
   DebugPrintln(json);
   StaticJsonDocument<512> doc;
   DeserializationError error = deserializeJson(doc, json);
-  if(error) return false;
+  if (error) return false;
   ServerEnabled = doc["serverEnabled"];
   CreateAccessPoint = doc["createAccessPoint"];
   ssid = String(doc["ssid"]);
@@ -212,14 +298,12 @@ bool StoreSettings(String json)
   return true;
 }
 
-IPAddress FromString(String ipString)
-{
+IPAddress FromString(String ipString) {
   //returns IPAddress struct from XXX.XXX.XXX.XXX string respresentation
-  uint8_t octets[4];  
+  uint8_t octets[4];
   DebugPrint("Reseived IP address:");
-  for(int i = 0, current = 0, next = 0; i < 4; i++)
-  {
-    next = ipString.indexOf(".",  current);
+  for (int i = 0, current = 0, next = 0; i < 4; i++) {
+    next = ipString.indexOf(".", current);
     octets[i] = ipString.substring(current, next).toInt();
     current = next + 1;
     DebugPrint(String(octets[i]));
@@ -418,6 +502,15 @@ void PerformAction() {
     } else if (server.argName(i) == StopBrakeCommand) {
       int stopBrake = String(server.arg(i)).toInt();
       if (stopBrake > 0) StopBrake();
+    } else if (server.argName(i) == "opencover") {
+      int level = String(server.arg(i)).toInt();
+      if(level == 0)
+        CloseCover();
+      else
+        OpenCover();
+    } else if (server.argName(i) == "setlight") {
+      int level = String(server.arg(i)).toInt();
+      SetLight(level);
     }
   }
 }
@@ -462,7 +555,8 @@ String GetCientPage() {
   </p>
   <form><p><input type="text" id="move" value="100" name="move" size="5"><input style="button" type="submit" value="Move"></p></form>  
   <p><a href="/?stopBrake=1"><button class="button">Stop brake</button></a></p>
-  
+  <p>Cover: <a href="/?opencover=1"><button class="button">Open</button></a><a href="/?opencover=0"><button class="button">Close</button></a></p>
+  <p>Light: <a href="/?setlight=1"><button class="button">On</button></a><a href="/?setlight=0"><button class="button">Off</button></a></p>
   </body></html>)";
   return response;
 }
@@ -478,12 +572,10 @@ void DebugPrintln(String string) {
 
 //------LED operations----------------------------------
 
-void setLedOff()
-{
+void setLedOff() {
   digitalWrite(INDICATOR_LED_PIN, INDICATOR_LED_OFF);
 }
 
-void setLedOn()
-{
+void setLedOn() {
   digitalWrite(INDICATOR_LED_PIN, INDICATOR_LED_ON);
 }
